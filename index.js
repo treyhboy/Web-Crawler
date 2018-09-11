@@ -1,41 +1,71 @@
-var express = require('express');
 var fs = require('fs');
 var request = require('request');
 var cheerio = require('cheerio');
-var app     = express();
+var Crawler = require("crawler");
 
-app.get('/scrape', function(req, res){
-
-    url = 'http://www.imdb.com/title/tt1229340/';
+function spider(url){
 
     request(url, function(error, response, html){
         if(!error){
             var $ = cheerio.load(html);
+            var d;
+            var c = new Crawler({
+                rateLimit: 2000, // `maxConnections` will be forced to 1
+                callback: function(err, res, done){
+                    d = $('.r').children()[0].attribs.href;
+                    console.log(d);
+                    fs.writeFile(`data.json`,d,function (){console.log("written")});
+                    done();
+                }
+            });
 
-            var title, release, rating;
-            var json = { title : "", release : "", rating : ""};
-
-            // We'll use the unique header class as a starting point.
-
-            $('.header').filter(function(){
-
-                // Let's store the data we filter into a variable so we can easily see what's going on.
-
-                var data = $(this);
-
-                // In examining the DOM we notice that the title rests within the first child element of the header tag.
-                // Utilizing jQuery we can easily navigate and get the text by writing the following code:
-
-                title = data.children().first().text();
-
-                // Once we have our title, we'll store it to the our json object.
-
-                json.title = title;
-            })
+            c.queue(url);
         }
     })
-})
+}
 
-app.listen('8081')
-console.log('Magic happens on port 8081');
-exports = module.exports = app;
+function go(url,name){
+
+    request(url, function(error, response, html){
+        if(!error){
+            var $ = cheerio.load(html);
+            var d;
+            var c = new Crawler({
+                rateLimit: 2000, // `maxConnections` will be forced to 1
+                callback: function(err, res, done){
+                    //for getting href from google first link (r is th classname for every links in google)
+                    d = $('.r').children()[0].attribs.href;
+                    //Link in the format (/url?q=http://www) so to cut short the format to http
+                    d = d.slice(7,d.length);
+                    d={"name":name,"url":d};
+                    console.log(d);
+                    var k = JSON.parse(fs.readFileSync('data.json', 'utf8'));
+                    k.push(d);
+                        fs.writeFileSync(`data.json`,JSON.stringify(k),function (){console.log("written")});
+                        // fs.appendFileSync(`data.json`,",",function (){console.log("written")})
+
+
+
+                    done();
+                }
+            });
+
+            c.queue(url);
+        }
+    })
+}
+
+//MAIN CODE START FROM HERE
+
+var obj = JSON.parse(fs.readFileSync('colleges.json', 'utf8'));
+var t = []
+//READ SEARCH DATA FROM FILE
+fs.writeFile(`data.json`,JSON.stringify(t),function (){console.log("written")});
+//CRAWL GOOGLE FOR WEBSITE LINKS OF THAT DATA
+for (var i in obj)
+{
+    console.log(obj[i])
+    var name = obj[i]
+    url = `https://www.google.co.in/search?source=hp&ei=wBGYW-v2BMjrvgTy06vgBA&q=${name}`;
+    go(url,name);
+}
